@@ -1,0 +1,20 @@
+{
+  "exclude": ["**/*.js"],
+  "compilerOptions": {
+    // node.js native ESM modules:
+    "moduleResolution": "nodenext",
+    "module": "nodenext",
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": false,
+
+    // strict type-checking options
+    "strict": true,
+    "strictNullChecks": true,
+
+    // misc:
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx"
+  }
+}

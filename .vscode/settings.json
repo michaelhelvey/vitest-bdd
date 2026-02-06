@@ -1,0 +1,10 @@
+{
+  "editor.tabSize": 2,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "always",
+    "source.fixAll.eslint": "always",
+    "source.removeUnusedImports": "never"
+  },
+  "typescript.tsdk": "node_modules/typescript/lib"
+}
