@@ -1,7 +1,7 @@
 {
   "name": "@michaelhelvey/vitest-bdd",
   "description": "A BDD (Behavior-Driven Development) testing helper for Vitest that provides a structured given/when/it pattern with isolated world state for each test.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "sideEffects": false,
   "repository": {
@@ -37,7 +37,7 @@
     "typecheck": "tsc --noEmit",
     "attw": "attw --pack . --profile esm-only",
     "validate": "bun run build && bun run test --run && bun run lint && bun run typecheck && bun run attw",
-    "build": "tsdown"
+    "build": "tsc -b && tsdown"
   },
   "prettier": {
     "proseWrap": "always",

@@ -14,6 +14,9 @@ structured `given`/`when`/`it` pattern with isolated world state for each test.
   after state creation but before assertions
 - **Cleanup hooks** - Register cleanup functions (e.g., unmounting React components) that run after
   each test
+- **Skip and only modifiers** - Use `.skip` and `.only` on `given`, `when`, and `it` to control test
+  execution
+- **Parameterized tests** - Use `.each` for data-driven testing with printf-style formatting
 
 ## Installation
 
@@ -124,6 +127,154 @@ given(
     cleanup(() => destroySomething());
     // ...
   },
+);
+```
+
+### Skip and Only Modifiers
+
+All three functions (`given`, `when`, `it`) support `.skip` and `.only` modifiers, mirroring
+vitest's behavior:
+
+```typescript
+// Skip an entire feature
+given.skip(
+  "feature under development",
+  {},
+  () => ({}),
+  ({ when }) => {
+    // These tests won't run
+  },
+);
+
+// Focus on a specific feature (only this runs)
+given.only(
+  "feature to debug",
+  {},
+  () => ({}),
+  ({ when }) => {
+    // Only these tests run
+  },
+);
+
+// Skip a specific scenario
+when.skip(
+  "edge case not yet handled",
+  ($) => {},
+  ({ it }) => {},
+);
+
+// Focus on a specific scenario
+when.only(
+  "scenario to debug",
+  ($) => {},
+  ({ it }) => {},
+);
+
+// Skip individual tests
+it.skip("not implemented yet", (state) => {});
+
+// Focus on individual tests
+it.only("debugging this test", (state) => {});
+```
+
+### Parameterized Tests with `.each`
+
+Use `.each` for data-driven testing. Supports printf-style formatting in descriptions:
+
+| Format | Description          |
+| ------ | -------------------- |
+| `%s`   | String               |
+| `%d`   | Number               |
+| `%i`   | Integer              |
+| `%f`   | Float                |
+| `%j`   | JSON                 |
+| `%o`   | Object               |
+| `%%`   | Literal percent sign |
+
+#### `given.each`
+
+```typescript
+given.each([
+  [1, 2, 3],
+  [2, 3, 5],
+  [10, 20, 30],
+])(
+  "adding %d + %d = %d",
+  (a, b, expected) => ({ a, b, expected }), // inputs factory
+  ({ a, b }) => ({ sum: a + b }), // world state factory
+  ({ when }) => {
+    when(
+      "computed",
+      () => {},
+      ({ it }) => {
+        it("equals expected", ({ sum }, { expected }) => {
+          expect(sum).toBe(expected);
+        });
+      },
+    );
+  },
+);
+```
+
+#### `when.each`
+
+```typescript
+given(
+  "a calculator",
+  { value: 0 },
+  ({ value }) => new Calculator(value),
+  ({ when }) => {
+    when.each([
+      [5, 5],
+      [10, 10],
+      [100, 100],
+    ])(
+      "adding %d",
+      ($, amount, expected) => {
+        $.state.add(amount);
+      },
+      ({ it }) => {
+        it("has correct value", (calc) => {
+          // Note: 'expected' from each() is available via closure if needed
+        });
+      },
+    );
+  },
+);
+```
+
+#### `it.each`
+
+```typescript
+when(
+  "performing calculations",
+  ($) => {},
+  ({ it }) => {
+    it.each([
+      [1, 2, 3],
+      [5, 5, 10],
+      [-1, 1, 0],
+    ])("adds %d + %d = %d", (a, b, expected, worldState) => {
+      // worldState is always the LAST argument
+      expect(a + b).toBe(expected);
+    });
+  },
+);
+```
+
+#### Combining Modifiers
+
+You can combine `skip`/`only` with `each`:
+
+```typescript
+// Skip parameterized tests
+it.skip.each([[1], [2], [3]])("test %d", (n, state) => {});
+
+// Focus on parameterized tests
+when.only.each([["a"], ["b"]])(
+  "scenario %s",
+  ($, letter) => {},
+  ({ it }) => {},
 );
 ```
 
