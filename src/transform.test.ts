@@ -27,6 +27,58 @@ describe("something", () => { test("works", () => {}); });
     expect(result).toBeNull();
   });
 
+  test("does not transform standalone it() calls outside of given()", () => {
+    const input = `
+import { describe, it, expect } from "vitest";
+
+describe("a non-BDD test suite", () => {
+  it("should work without BDD", () => {
+    expect(1 + 1).toBe(2);
+  });
+
+  it("should also work", () => {
+    expect(true).toBe(true);
+  });
+});
+    `.trim();
+
+    const result = transformBddSyntax(input, "test.spec.ts");
+    // Non-BDD test files should be left completely untouched
+    expect(result).toBeNull();
+  });
+
+  test("does not transform it() calls outside given() even when given() exists elsewhere", () => {
+    const input = `
+import { describe, expect } from "vitest";
+
+describe("non-BDD tests", () => {
+  it("standalone test", () => {
+    expect(1).toBe(1);
+  });
+});
+
+given("a BDD test", () => {
+  $inputs = { value: 1 };
+  $subject = $inputs.value;
+
+  it("works in BDD", () => {
+    expect($subject).toBe(1);
+  });
+});
+    `.trim();
+
+    const result = transformBddSyntax(input, "test.spec.ts");
+    expect(result).not.toBeNull();
+    const output = result!.code;
+
+    // The standalone it() should NOT be transformed
+    expect(output).toContain('it("standalone test"');
+    // The BDD it() should be transformed
+    expect(output).toContain('__it("works in BDD"');
+    // The standalone it should not reference __ctx
+    expect(output).not.toMatch(/it\("standalone test".*__ctx/);
+  });
+
   test("transforms simple given/it block", () => {
     const input = `
 given("a Foo", () => {
@@ -66,11 +118,16 @@ given("a Foo", () => {
 
   test("transforms when block with modifier", () => {
     const input = `
-when("the user sets value to 5", () => {
-  $inputs.value = 5;
+given("a Foo", () => {
+  $inputs = { value: 0 };
+  $subject = new Foo($inputs.value);
 
-  it("has value 5", () => {
-    expect($subject.value).toEqual(5);
+  when("the user sets value to 5", () => {
+    $inputs.value = 5;
+
+    it("has value 5", () => {
+      expect($subject.value).toEqual(5);
+    });
   });
 });
     `.trim();
@@ -96,11 +153,16 @@ when("the user sets value to 5", () => {
 
   test("transforms when block with perform", () => {
     const input = `
-when("inc is called", () => {
-  $subject.inc();
+given("a Foo", () => {
+  $inputs = { value: 0 };
+  $subject = new Foo($inputs.value);
 
-  it("has value 1", () => {
-    expect($subject.value).toEqual(1);
+  when("inc is called", () => {
+    $subject.inc();
+
+    it("has value 1", () => {
+      expect($subject.value).toEqual(1);
+    });
   });
 });
     `.trim();
@@ -114,12 +176,17 @@ when("inc is called", () => {
 
   test("transforms when block with modifier AND perform", () => {
     const input = `
-when("the user sets value to 5 and increments", () => {
-  $inputs.value = 5;
-  $subject.inc();
+given("a Foo", () => {
+  $inputs = { value: 0 };
+  $subject = new Foo($inputs.value);
 
-  it("has value 6", () => {
-    expect($subject.value).toEqual(6);
+  when("the user sets value to 5 and increments", () => {
+    $inputs.value = 5;
+    $subject.inc();
+
+    it("has value 6", () => {
+      expect($subject.value).toEqual(6);
+    });
   });
 });
     `.trim();
@@ -208,11 +275,16 @@ given.skip("skipped", () => {
     expect(givenSkipOutput).not.toContain("given.skip");
 
     const whenOnlyInput = `
-when.only("focused", () => {
-  $inputs.value = 5;
+given("a Foo", () => {
+  $inputs = { value: 0 };
+  $subject = new Foo($inputs.value);
 
-  it("runs", () => {
-    expect($subject.value).toEqual(5);
+  when.only("focused", () => {
+    $inputs.value = 5;
+
+    it("runs", () => {
+      expect($subject.value).toEqual(5);
+    });
   });
 });
     `.trim();
@@ -223,8 +295,13 @@ when.only("focused", () => {
     expect(whenOnlyOutput).not.toContain("when.only");
 
     const itSkipInput = `
-it.skip("skipped test", () => {
-  expect($subject.value).toEqual(0);
+given("a Foo", () => {
+  $inputs = { value: 0 };
+  $subject = new Foo($inputs.value);
+
+  it.skip("skipped test", () => {
+    expect($subject.value).toEqual(0);
+  });
 });
     `.trim();
 
@@ -277,11 +354,16 @@ given("a Foo", () => {
 
   test("preserves async callbacks", () => {
     const input = `
-when("async operation", async () => {
-  $subject.inc();
+given("a Foo", () => {
+  $inputs = { value: 0 };
+  $subject = new Foo($inputs.value);
 
-  it("has value 1", async () => {
-    expect($subject.value).toEqual(1);
+  when("async operation", async () => {
+    $subject.inc();
+
+    it("has value 1", async () => {
+      expect($subject.value).toEqual(1);
+    });
   });
 });
     `.trim();
@@ -342,8 +424,13 @@ __given("a Foo", { inputs: () => ({ value: 0 }), subject: ($inputs) => new Foo($
 
   test("returns a source map", () => {
     const input = `
-it("works", () => {
-  expect(true).toBe(true);
+given("something", () => {
+  $inputs = { x: 1 };
+  $subject = $inputs.x;
+
+  it("works", () => {
+    expect($subject).toBe(1);
+  });
 });
     `.trim();
 

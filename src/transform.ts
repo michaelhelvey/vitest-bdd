@@ -74,34 +74,44 @@ function parseBddCall(
 
 /**
  * Collect all BDD calls in the AST, recording their nesting depth.
+ * Only collects `when()` and `it()` calls that are nested inside a `given()` call,
+ * since standalone `it()` / `when()` calls are standard Vitest calls and should not
+ * be transformed (they would reference `__ctx` which is only defined inside a
+ * transformed `given()` callback).
  */
 function collectBddCalls(sourceFile: ts.SourceFile): BddCall[] {
   const calls: BddCall[] = [];
 
-  function visit(node: ts.Node, depth: number): void {
+  function visit(node: ts.Node, depth: number, insideGiven: boolean): void {
     if (ts.isCallExpression(node)) {
       const parsed = parseBddCall(node);
       if (parsed) {
-        calls.push({
-          kind: parsed.kind,
-          node,
-          depth,
-          modifier: parsed.modifier,
-        });
+        // Only collect `when` and `it` if they are inside a `given` block.
+        // Top-level `it()` / `when()` calls are standard Vitest and must not
+        // be rewritten.
+        if (parsed.kind === "given" || insideGiven) {
+          calls.push({
+            kind: parsed.kind,
+            node,
+            depth,
+            modifier: parsed.modifier,
+          });
+        }
+        const nowInsideGiven = insideGiven || parsed.kind === "given";
         // Continue visiting children at deeper depth
         ts.forEachChild(node, (child) => {
-          visit(child, depth + 1);
+          visit(child, depth + 1, nowInsideGiven);
         });
         return;
       }
     }
     ts.forEachChild(node, (child) => {
-      visit(child, depth);
+      visit(child, depth, insideGiven);
     });
   }
 
   ts.forEachChild(sourceFile, (child) => {
-    visit(child, 0);
+    visit(child, 0, false);
   });
   return calls;
 }
