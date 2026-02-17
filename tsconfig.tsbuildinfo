@@ -1,1 +1,1 @@
-{"root":["./eslint.config.ts","./tsdown.config.ts","./vitest.config.ts","./dist/index.d.mts","./src/index.test.tsx","./src/index.ts"],"version":"5.9.3"}
+{"root":["./eslint.config.ts","./tsdown.config.ts","./vitest.config.ts","./dist/plugin.d.mts","./dist/runtime.d.mts","./src/globals.d.ts","./src/plugin.test.ts","./src/plugin.ts","./src/runtime.test.ts","./src/runtime.ts","./src/transform.test.ts","./src/transform.ts","./src/ts-plugin.test.ts","./src/ts-plugin.ts"],"version":"5.9.3"}
