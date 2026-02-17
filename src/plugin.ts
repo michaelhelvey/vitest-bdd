@@ -1,7 +1,7 @@
 import type { Plugin } from "vite";
 import { transformBddSyntax } from "./transform.ts";
 
-export function vitestBddPlugin(): Plugin {
+export default function vitestBddPlugin(): Plugin {
   return {
     name: "vitest-bdd",
     enforce: "pre",

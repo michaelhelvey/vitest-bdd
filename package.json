@@ -97,7 +97,7 @@
     "typecheck": "tsc --noEmit",
     "attw": "attw --pack . --exclude-entrypoints ./ts-plugin --ignore-rules no-resolution cjs-resolves-to-esm",
     "validate": "bun run build && bun run test --run && bun run lint && bun run typecheck && bun run attw",
-    "build": "tsc -b && tsdown"
+    "build": "tsc -b && tsdown && bun link"
   },
   "sideEffects": false,
   "type": "module"

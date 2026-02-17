@@ -1,0 +1,16 @@
+{
+  "name": "vitest-bdd-example",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@michaelhelvey/vitest-bdd": "link:@michaelhelvey/vitest-bdd"
+  },
+  "devDependencies": {
+    "vitest": "4.0.18",
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "test": "vitest --run",
+    "typecheck": "tsc --noEmit"
+  }
+}

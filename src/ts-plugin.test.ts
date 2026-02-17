@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import ts from "typescript";
 import { describe, expect, test } from "vitest";
 import pluginFactory from "./ts-plugin.ts";

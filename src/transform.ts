@@ -114,6 +114,18 @@ function getNodeText(code: string, node: ts.Node): string {
 }
 
 /**
+ * Check if an expression is (or wraps via `as` / `satisfies`) an object literal.
+ * Returns true for: `{ ... }`, `{ ... } as T`, `{ ... } satisfies T`, etc.
+ */
+function isObjectLiteralLike(node: ts.Expression): boolean {
+  if (ts.isObjectLiteralExpression(node)) return true;
+  if (ts.isAsExpression(node)) return isObjectLiteralLike(node.expression);
+  if (ts.isSatisfiesExpression(node)) return isObjectLiteralLike(node.expression);
+  if (ts.isParenthesizedExpression(node)) return isObjectLiteralLike(node.expression);
+  return false;
+}
+
+/**
  * Find the arrow function or function expression callback (last arg that is a function).
  */
 function getCallbackArg(node: ts.CallExpression): ts.ArrowFunction | ts.FunctionExpression | null {
@@ -225,14 +237,15 @@ function transformGiven(call: BddCall, code: string, s: MagicString): void {
     if (isInputsAssignment(stmt)) {
       const binExpr = stmt.expression as ts.BinaryExpression;
       const exprText = getNodeText(code, binExpr.right);
-      // Wrap object literals in parens
-      inputsExpr = ts.isObjectLiteralExpression(binExpr.right) ? `(${exprText})` : exprText;
+      // Wrap object literals (including those with `as T` / `satisfies T`) in parens
+      inputsExpr = isObjectLiteralLike(binExpr.right) ? `(${exprText})` : exprText;
       stmtsToRemove.push(stmt);
     } else if (isSubjectAssignment(stmt)) {
       const binExpr = stmt.expression as ts.BinaryExpression;
       const exprText = getNodeText(code, binExpr.right);
-      // Wrap object literals in parens so arrow function body isn't ambiguous
-      subjectExpr = ts.isObjectLiteralExpression(binExpr.right) ? `(${exprText})` : exprText;
+      // Wrap object literals (including those with `as T` / `satisfies T`) in parens
+      // so arrow function body isn't ambiguous
+      subjectExpr = isObjectLiteralLike(binExpr.right) ? `(${exprText})` : exprText;
       stmtsToRemove.push(stmt);
     }
   }
