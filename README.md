@@ -1,19 +1,28 @@
 # @michaelhelvey/vitest-bdd
 
-A BDD (Behavior-Driven Development) testing helper for [Vitest](https://vitest.dev/) that provides a
-structured `given`/`when`/`it` pattern with isolated world state for each test.
+A BDD (Behavior-Driven Development) testing framework for [Vitest](https://vitest.dev/) that
+provides RSpec-like `given`/`when`/`it` syntax with lazy evaluation of inputs and subjects via
+compile-time transforms.
 
-## Features
+<!-- prettier-ignore -->
+> [!WARNING] 
+> This library was largely created and documented by generative AI (Claude Opus 4.6) as a
+> proof of concept.  I think it turned out pretty well, but my general sense is that a lot
+> of the compilation pipeline could be easily simplified.
 
-- **Natural language test structure** - Write tests that read like specifications using
-  `given`/`when`/`it`
-- **Test isolation** - Each `it` receives completely fresh world state, preventing test pollution
-- **Lazy state creation** - World state is created on-demand, allowing input modifications before
-  instantiation
-- **Async side-effects** - Use `$.perform()` perform async side-effects (e.g., user interactions)
-  after state creation but before assertions
-- **Cleanup hooks** - Register cleanup functions (e.g., unmounting React components) that run after
-  each test
+## Motivation
+
+The core idea is borrowed from RSpec's `let`/`subject` pattern: separate **what your test data is**
+from **how your test subject is created** from that data.
+
+- `$inputs` defines a factory for your test's input data.
+- `$subject` defines how to create the thing under test from those inputs.
+- Each `it()` test gets completely fresh inputs and a fresh subject — no shared mutable state
+  between tests.
+- `when()` blocks can modify `$inputs` properties (changing data before subject creation) or
+  interact with `$subject` (performing side-effects after creation).
+
+This is all powered by a Vite plugin that transforms your BDD syntax at compile time.
 
 ## Installation
 
@@ -23,12 +32,54 @@ npm install @michaelhelvey/vitest-bdd # or bun, yarn, pnpm, etc.
 
 **Peer Dependencies:**
 
-- `vitest` ^3.2.4
+- `vite` >=5
+- `vitest` >3
+
+## Setup
+
+### 1. Add the Vite plugin
+
+```typescript
+// vitest.config.ts
+import vitestBddPlugin from "@michaelhelvey/vitest-bdd";
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  plugins: [vitestBddPlugin()],
+});
+```
+
+### 2. Add globals type reference
+
+In your `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "types": ["@michaelhelvey/vitest-bdd/globals"]
+  }
+}
+```
+
+This makes `given`, `when`, `it`, `$inputs`, and `$subject` available as magic globals — no imports
+needed.
+
+### 3. (Optional) TypeScript language service plugin
+
+For full editor support (autocomplete on `$inputs.` and `$subject.`, hover info, go-to-definition,
+diagnostic suppression), add the language service plugin:
+
+```json
+{
+  "compilerOptions": {
+    "plugins": [{ "name": "@michaelhelvey/vitest-bdd/ts-plugin" }]
+  }
+}
+```
 
 ## Quick Start
 
 ```typescript
-import { given } from "@michaelhelvey/vitest-bdd";
 import { expect } from "vitest";
 
 class Counter {
@@ -41,90 +92,104 @@ class Counter {
   }
 }
 
-given(
-  "a Counter",
-  { initialValue: 0 },
-  ({ initialValue }) => new Counter(initialValue),
-  ({ when }) => {
-    when(
-      "initialized with value 5",
-      ($) => {
-        $.inputs.initialValue = 5;
-      },
-      ({ it }) => {
-        it("has value 5", (counter) => {
-          expect(counter.value).toEqual(5);
-        });
-      },
-    );
+given("a Counter", () => {
+  $inputs = { initialValue: 0 };
+  $subject = new Counter($inputs.initialValue);
 
-    when(
-      "incremented",
-      ($) => {
-        $.state.inc();
-      },
-      ({ it }) => {
-        it("has value 1", (counter) => {
-          expect(counter.value).toEqual(1);
-        });
-      },
-    );
-  },
-);
+  when("initialized with value 5", () => {
+    $inputs.initialValue = 5;
+
+    it("has value 5", () => {
+      expect($subject.value).toEqual(5);
+    });
+  });
+
+  when("incremented", () => {
+    $subject.inc();
+
+    it("has value 1", () => {
+      expect($subject.value).toEqual(1);
+    });
+  });
+});
 ```
 
 ## API
 
-### `given(scenario, inputs, createWorldState, tests)`
+### `given(scenario, callback)`
 
-The main function for creating BDD-style test suites.
+Creates a describe block for a test context. Inside the callback:
 
-| Parameter          | Type                               | Description                                           |
-| ------------------ | ---------------------------------- | ----------------------------------------------------- |
-| `scenario`         | `string`                           | Description of the test context                       |
-| `inputs`           | `TInputs`                          | Initial input values used to create world state       |
-| `createWorldState` | `(inputs: TInputs) => TWorldState` | Factory function that creates world state from inputs |
-| `tests`            | `(helpers) => void`                | Function receiving `{ when, cleanup }` helpers        |
+- Assign `$inputs = { ... }` to define default input data.
+- Assign `$subject = someExpression($inputs.prop)` to define how to create the test subject from
+  inputs.
+- Use `when()` and `it()` to define scenarios and assertions.
 
-### `when(scenario, modifier, tests)`
+### `when(scenario, callback)`
 
-Defines a scenario within a `given` block.
+Creates a nested describe block within a `given` or another `when`. Inside the callback, you can:
 
-| Parameter  | Type               | Description                                              |
-| ---------- | ------------------ | -------------------------------------------------------- |
-| `scenario` | `string`           | Description of the scenario                              |
-| `modifier` | `($) => void`      | Function to modify inputs or perform actions (see below) |
-| `tests`    | `({ it }) => void` | Function to define test assertions                       |
+- **Modify inputs:** `$inputs.prop = newValue` — these become "modifiers" that run before subject
+  creation, overriding defaults from enclosing scopes.
+- **Perform side-effects:** any statement that references `$subject` and is _not_ inside an `it()`
+  call becomes a "perform" action — it runs after subject creation but before assertions.
+- **Nest further:** add more `when()` or `it()` calls.
 
-The modifier function receives an object with:
+### `it(scenario, callback)`
 
-- `$.inputs` - Proxy to modify input values before state creation
-- `$.state` - Lazily-created world state (accessing triggers creation)
-- `$.perform(fn)` - Register an async action to run after state creation
+Creates a test case. Inside the callback, `$subject` refers to the freshly-created subject for this
+test. The execution order for each `it()` is:
 
-### `it(scenario, testFn)`
+1. Create fresh inputs via the `$inputs` factory.
+2. Apply all modifiers from enclosing `when()` blocks (innermost last).
+3. Create the subject via the `$subject` factory.
+4. Run all perform actions from enclosing `when()` blocks.
+5. Run the test function.
 
-Defines a test assertion within a `when` block.
+### Skip and Only
 
-| Parameter  | Type                   | Description                               |
-| ---------- | ---------------------- | ----------------------------------------- |
-| `scenario` | `string`               | Description of what the test asserts      |
-| `testFn`   | `(worldState) => void` | Test function receiving fresh world state |
-
-### `cleanup(cleanupFn)`
-
-Registers a cleanup function to run after each test.
+All three functions support `.skip` and `.only` modifiers, mirroring Vitest's behavior:
 
 ```typescript
-given(
-  "...",
-  {},
-  () => createSomething(),
-  ({ when, cleanup }) => {
-    cleanup(() => destroySomething());
-    // ...
-  },
-);
+given.skip("feature under development", () => {
+  // These tests won't run
+});
+
+given.only("feature to debug", () => {
+  // Only these tests run
+});
+
+when.skip("edge case not yet handled", () => {});
+when.only("scenario to debug", () => {});
+
+it.skip("not implemented yet", () => {});
+it.only("debugging this test", () => {});
+```
+
+### Iteration
+
+Instead of a special `.each` method, use standard JavaScript iteration:
+
+```typescript
+given("addition", () => {
+  $inputs = { a: 0, b: 0 };
+  $subject = { sum: $inputs.a + $inputs.b };
+
+  for (const [a, b, expected] of [
+    [1, 2, 3],
+    [2, 3, 5],
+    [10, 20, 30],
+  ]) {
+    when(`adding ${a} + ${b}`, () => {
+      $inputs.a = a;
+      $inputs.b = b;
+
+      it(`equals ${expected}`, () => {
+        expect($subject.sum).toEqual(expected);
+      });
+    });
+  }
+});
 ```
 
 ## Usage Examples
@@ -132,7 +197,6 @@ given(
 ### Testing a Class
 
 ```typescript
-import { given } from "@michaelhelvey/vitest-bdd";
 import { expect } from "vitest";
 
 class Calculator {
@@ -145,50 +209,40 @@ class Calculator {
   }
 }
 
-given(
-  "a Calculator",
-  { initial: 0 },
-  ({ initial }) => new Calculator(initial),
-  ({ when }) => {
-    when(
-      "starting at 10",
-      ($) => {
-        $.inputs.initial = 10;
-      },
-      ({ it }) => {
-        it("has initial value 10", (calc) => {
-          expect(calc.getResult()).toEqual(10);
-        });
+given("a Calculator", () => {
+  $inputs = { initial: 0 };
+  $subject = new Calculator($inputs.initial);
 
-        it("can add 5 to get 15", (calc) => {
-          calc.add(5);
-          expect(calc.getResult()).toEqual(15);
-        });
-      },
-    );
+  when("starting at 10", () => {
+    $inputs.initial = 10;
 
-    when(
-      "5 is added",
-      ($) => {
-        $.state.add(5);
-      },
-      ({ it }) => {
-        it("equals 5", (calc) => {
-          expect(calc.getResult()).toEqual(5);
-        });
-      },
-    );
-  },
-);
+    it("has initial value 10", () => {
+      expect($subject.getResult()).toEqual(10);
+    });
+
+    it("can add 5 to get 15", () => {
+      $subject.add(5);
+      expect($subject.getResult()).toEqual(15);
+    });
+  });
+
+  when("5 is added", () => {
+    $subject.add(5);
+
+    it("equals 5", () => {
+      expect($subject.getResult()).toEqual(5);
+    });
+  });
+});
 ```
 
 ### Testing React Components
 
 ```tsx
-import { given } from "@michaelhelvey/vitest-bdd";
-import { render, cleanup as testingLibraryCleanup } from "@testing-library/react";
-import { userEvent } from "@testing-library/user-event";
-import { expect } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
+import { afterEach, expect } from "vitest";
 
 function Counter({ start }: { start: number }) {
   const [count, setCount] = useState(start);
@@ -200,106 +254,100 @@ function Counter({ start }: { start: number }) {
   );
 }
 
-given(
-  "a Counter component",
-  { start: 0 },
-  (inputs) => render(<Counter start={inputs.start} />),
-  ({ when, cleanup }) => {
-    const user = userEvent.setup();
-    cleanup(() => testingLibraryCleanup());
+afterEach(() => cleanup());
 
-    when(
-      "rendered with default props",
-      () => {},
-      ({ it }) => {
-        it("shows count as 0", ({ getByTestId }) => {
-          expect(getByTestId("count").innerText).toEqual("0");
-        });
-      },
-    );
+given("a Counter component", () => {
+  $inputs = { start: 0 };
+  $subject = render(<Counter start={$inputs.start} />);
 
-    when(
-      "starting at 5 and clicking increment",
-      ($) => {
-        $.inputs.start = 5;
-        $.perform(async () => {
-          await user.click($.state.getByRole("button"));
-        });
-      },
-      ({ it }) => {
-        it("shows count as 6", ({ getByTestId }) => {
-          expect(getByTestId("count").innerText).toEqual("6");
-        });
-      },
-    );
-  },
-);
+  when("rendered with default props", () => {
+    it("shows count as 0", () => {
+      expect(screen.getByTestId("count").textContent).toEqual("0");
+    });
+  });
+
+  when("starting at 5 and clicking increment", () => {
+    $inputs.start = 5;
+    await userEvent.click(screen.getByRole("button"));
+
+    it("shows count as 6", () => {
+      expect(screen.getByTestId("count").textContent).toEqual("6");
+    });
+  });
+});
 ```
 
 ## Key Concepts
 
 ### Test Isolation
 
-Every `it` test receives a **completely fresh world state**. This means:
+Every `it()` test receives a **completely fresh subject**. Mutations in one test never affect
+another:
 
 ```typescript
-when(
-  "some scenario",
-  ($) => {
-    $.inputs.value = 5;
-  },
-  ({ it }) => {
-    it("test A - mutates state", (state) => {
-      state.mutate(); // This mutation...
+given("something", () => {
+  $inputs = { value: 0 };
+  $subject = { count: $inputs.value };
+
+  when("some scenario", () => {
+    it("test A - mutates subject", () => {
+      $subject.count = 999; // This mutation...
     });
 
-    it("test B - gets fresh state", (state) => {
-      // ...does NOT affect this test. Fresh state here.
+    it("test B - gets fresh subject", () => {
+      // ...does NOT affect this test. Fresh subject here.
+      expect($subject.count).toEqual(0);
     });
-  },
-);
+  });
+});
 ```
 
-### Input Modification Timing
+### Lazy Evaluation
 
-Inputs can only be modified **before** accessing `$.state`:
+`$inputs = expr` and `$subject = expr` don't execute immediately. They are transformed at compile
+time into factory functions:
 
-```typescript
-when(
-  "scenario",
-  ($) => {
-    $.inputs.value = 5; // OK - before state access
-    $.state.doSomething(); // State created here
-    $.inputs.value = 10; // ERROR! Cannot modify after state access
-  },
-  ({ it }) => {
-    /* ... */
-  },
-);
-```
+- `$inputs = { a: 1, b: 2 }` becomes `() => ({ a: 1, b: 2 })`
+- `$subject = new Foo($inputs.a)` becomes `($inputs) => new Foo($inputs.a)`
 
-### The `perform` Function
+Each `it()` invokes these factories fresh, applies any `when()` modifiers to the inputs, then
+creates the subject. This is what enables the RSpec-like `let`/`subject` pattern — you declare
+_what_ things are, and the framework handles _when_ they're created.
 
-Use `$.perform()` to register an action that runs **after** state creation but **before** test
-assertions:
+### Modifier and Perform Classification
 
-```typescript
-when(
-  "the button is clicked",
-  ($) => {
-    $.perform(async () => {
-      await userEvent.click($.state.getByRole("button"));
-    });
-  },
-  ({ it }) => {
-    it("reflects the click", (state) => {
-      // Assertions run after perform() completes
-    });
-  },
-);
-```
+Statements inside `when()` blocks are automatically classified:
 
-Note: `perform()` can only be called once per modifier.
+- **Modifiers:** `$inputs.prop = value` — runs _before_ subject creation to override input defaults.
+- **Performs:** any statement referencing `$subject` — runs _after_ subject creation, before
+  assertions. Use these for side-effects like clicking buttons or calling methods.
+- **Body code:** everything else (nested `when()`, `it()`, loops, etc.) — runs normally during test
+  setup.
+
+## How It Works
+
+The Vite plugin transforms your BDD syntax at compile time into standard Vitest `describe`/`test`
+calls. There is no runtime overhead beyond what Vitest itself provides.
+
+The transformation:
+
+- `given("...", fn)` → `describe("given ...", fn)` with factory registration
+- `$inputs = expr` → a factory function `() => expr`
+- `$subject = expr` → a factory function `($inputs) => expr`
+- `$inputs.prop = value` inside `when()` → a modifier callback
+- `$subject.method()` inside `when()` (outside `it()`) → a perform callback
+- `it("...", fn)` → `test("...", fn)` that runs the full create → modify → perform → assert pipeline
+
+## Editor Support
+
+The TypeScript language service plugin (`"plugins": [{ "name": "@michaelhelvey/vitest-bdd" }]` in
+tsconfig) provides:
+
+- **Autocomplete** on `$inputs.` and `$subject.` based on their assigned types
+- **Hover information** showing the inferred types of `$inputs` and `$subject`
+- **Go-to-definition** navigation from `$inputs`/`$subject` references to their declarations
+- **Diagnostic suppression** for false errors that TypeScript would otherwise report on the magic
+  globals (e.g., "Cannot find name '$inputs'")
 
 ## License
 

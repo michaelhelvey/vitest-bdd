@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "nodenext",
+    "module": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["@michaelhelvey/vitest-bdd/globals"],
+    "plugins": [{ "name": "@michaelhelvey/vitest-bdd/ts-plugin" }]
+  },
+  "include": ["src"],
+  "exclude": ["src/errors.test.ts"]
+}

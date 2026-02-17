@@ -1,0 +1,3 @@
+{
+  "main": "../dist/ts-plugin.cjs"
+}

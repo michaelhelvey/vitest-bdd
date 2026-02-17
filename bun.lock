@@ -4,6 +4,10 @@
   "workspaces": {
     "": {
       "name": "@michaelhelvey/vitest-bdd",
+      "dependencies": {
+        "magic-string": "0.30.21",
+        "typescript": "5.9.3",
+      },
       "devDependencies": {
         "@arethetypeswrong/cli": "0.18.2",
         "@eslint/compat": "2.0.2",
@@ -22,11 +26,11 @@
         "react": "19.2.4",
         "react-dom": "19.2.4",
         "tsdown": "0.20.3",
-        "typescript": "5.9.3",
         "typescript-eslint": "8.54.0",
         "vitest": "4.0.18",
       },
       "peerDependencies": {
+        "vite": ">=5",
         "vitest": ">3",
       },
     },

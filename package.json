@@ -1,66 +1,18 @@
 {
   "name": "@michaelhelvey/vitest-bdd",
-  "description": "A BDD (Behavior-Driven Development) testing helper for Vitest that provides a structured given/when/it pattern with isolated world state for each test.",
-  "version": "1.0.1",
-  "type": "module",
-  "sideEffects": false,
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/michaelhelvey/vitest-bdd"
-  },
+  "version": "2.0.0",
   "author": {
     "email": "michael.helvey1@gmail.com",
     "name": "Michael Helvey",
     "url": "https://github.com/michaelhelvey"
   },
-  "exports": {
-    ".": "./dist/index.mjs",
-    "./package.json": "./package.json"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/michaelhelvey/vitest-bdd"
   },
-  "types": "./dist/index-DjlQkj8y.d.ts",
-  "files": [
-    "dist",
-    "src",
-    "README.md",
-    "package.json",
-    "tsconfig.json"
-  ],
-  "license": "MIT",
-  "engines": {
-    "node": ">=24"
-  },
-  "scripts": {
-    "prepare": "lefthook install",
-    "prepublish": "bun run validate",
-    "test": "vitest",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "attw": "attw --pack . --profile esm-only",
-    "validate": "bun run build && bun run test --run && bun run lint && bun run typecheck && bun run attw",
-    "build": "tsdown"
-  },
-  "prettier": {
-    "proseWrap": "always",
-    "singleQuote": false,
-    "semi": true,
-    "trailingComma": "all",
-    "useTabs": false,
-    "printWidth": 100,
-    "tabWidth": 2,
-    "plugins": [
-      "@trivago/prettier-plugin-sort-imports"
-    ],
-    "importOrder": [
-      "^node:.*$",
-      "<THIRD_PARTY_MODULES>",
-      "^[./]"
-    ],
-    "importOrderSeparation": false,
-    "importOrderSortSpecifiers": true
-  },
-  "dependencies": {},
-  "peerDependencies": {
-    "vitest": ">3"
+  "dependencies": {
+    "magic-string": "0.30.21",
+    "typescript": "5.9.3"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.2",
@@ -80,8 +32,73 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "tsdown": "0.20.3",
-    "typescript": "5.9.3",
     "typescript-eslint": "8.54.0",
     "vitest": "4.0.18"
-  }
+  },
+  "peerDependencies": {
+    "vite": ">=5",
+    "vitest": ">3"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/plugin.d.mts",
+        "default": "./dist/plugin.mjs"
+      }
+    },
+    "./runtime": {
+      "import": {
+        "types": "./dist/runtime.d.mts",
+        "default": "./dist/runtime.mjs"
+      }
+    },
+    "./ts-plugin": "./dist/ts-plugin.cjs",
+    "./globals": {
+      "types": "./src/globals.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "description": "A BDD (Behavior-Driven Development) testing helper for Vitest that provides a structured given/when/it pattern with isolated world state for each test.",
+  "engines": {
+    "node": ">=24"
+  },
+  "files": [
+    "dist",
+    "ts-plugin",
+    "src/globals.d.ts",
+    "README.md",
+    "package.json"
+  ],
+  "license": "MIT",
+  "prettier": {
+    "proseWrap": "always",
+    "singleQuote": false,
+    "semi": true,
+    "trailingComma": "all",
+    "useTabs": false,
+    "printWidth": 100,
+    "tabWidth": 2,
+    "plugins": [
+      "@trivago/prettier-plugin-sort-imports"
+    ],
+    "importOrder": [
+      "^node:.*$",
+      "<THIRD_PARTY_MODULES>",
+      "^[./]"
+    ],
+    "importOrderSeparation": false,
+    "importOrderSortSpecifiers": true
+  },
+  "scripts": {
+    "prepare": "lefthook install",
+    "prepublish": "bun run validate",
+    "test": "vitest",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "attw": "attw --pack . --exclude-entrypoints ./ts-plugin --ignore-rules no-resolution cjs-resolves-to-esm",
+    "validate": "bun run build && bun run test --run && bun run lint && bun run typecheck && bun run attw",
+    "build": "tsc -b && tsdown && bun link"
+  },
+  "sideEffects": false,
+  "type": "module"
 }
