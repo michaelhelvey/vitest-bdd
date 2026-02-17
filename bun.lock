@@ -30,6 +30,7 @@
         "vitest": "4.0.18",
       },
       "peerDependencies": {
+        "vite": ">=5",
         "vitest": ">3",
       },
     },

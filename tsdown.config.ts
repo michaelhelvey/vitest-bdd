@@ -10,6 +10,7 @@ export default defineConfig([
   {
     entry: ["./src/ts-plugin.ts"],
     format: "cjs",
+    failOnWarn: false,
     dts: false,
     sourcemap: true,
   },
