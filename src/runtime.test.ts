@@ -18,7 +18,7 @@ __given(
   (ctx) => {
     __it(
       "has a value of 0",
-      (subject) => {
+      (_inputs, subject) => {
         expect(subject.value).toEqual(0);
       },
       ctx,
@@ -36,7 +36,7 @@ __given(
   (ctx) => {
     __it(
       "starts at 0 and mutates to 1",
-      (subject) => {
+      (_inputs, subject) => {
         expect(subject.value).toEqual(0);
         subject.inc();
         expect(subject.value).toEqual(1);
@@ -46,7 +46,7 @@ __given(
 
     __it(
       "also starts at 0 (not affected by previous test)",
-      (subject) => {
+      (_inputs, subject) => {
         expect(subject.value).toEqual(0);
       },
       ctx,
@@ -72,7 +72,7 @@ __given(
       (whenCtx) => {
         __it(
           "has a value of 5",
-          (subject) => {
+          (_inputs, subject) => {
             expect(subject.value).toEqual(5);
           },
           whenCtx,
@@ -101,7 +101,7 @@ __given(
       (whenCtx) => {
         __it(
           "has a value of 1",
-          (subject) => {
+          (_inputs, subject) => {
             expect(subject.value).toEqual(1);
           },
           whenCtx,
@@ -130,7 +130,7 @@ __given(
       (outerCtx) => {
         __it(
           "has a value of 10",
-          (subject) => {
+          (_inputs, subject) => {
             expect(subject.value).toEqual(10);
           },
           outerCtx,
@@ -146,7 +146,7 @@ __given(
           (innerCtx) => {
             __it(
               "has a value of 20 (both modifiers applied in order)",
-              (subject) => {
+              (_inputs, subject) => {
                 expect(subject.value).toEqual(20);
               },
               innerCtx,
@@ -178,7 +178,7 @@ __given(
       (outerCtx) => {
         __it(
           "has a value of 1 after outer perform",
-          (subject) => {
+          (_inputs, subject) => {
             expect(subject.value).toEqual(1);
           },
           outerCtx,
@@ -194,7 +194,7 @@ __given(
           (innerCtx) => {
             __it(
               "has a value of 2 (both performs ran in order)",
-              (subject) => {
+              (_inputs, subject) => {
                 expect(subject.value).toEqual(2);
               },
               innerCtx,
@@ -227,7 +227,7 @@ __given(
       (whenCtx) => {
         __it(
           "has a value of 1 after async perform completes",
-          (subject) => {
+          (_inputs, subject) => {
             expect(subject.value).toEqual(1);
           },
           whenCtx,
@@ -238,7 +238,26 @@ __given(
   },
 );
 
-// Test 8: skip/only support -- pass custom describeFn/testRunner
+// Test 8: $inputs accessible inside it() callback
+__given(
+  "a Foo where $inputs is accessed in it()",
+  {
+    inputs: () => ({ value: 42 }),
+    subject: (inputs) => new Foo(inputs.value),
+  },
+  (ctx) => {
+    __it(
+      "can access $inputs inside it()",
+      (inputs, subject) => {
+        expect(inputs.value).toEqual(42);
+        expect(subject.value).toEqual(42);
+      },
+      ctx,
+    );
+  },
+);
+
+// Test 9: skip/only support -- pass custom describeFn/testRunner
 __given(
   "a Foo with skip support",
   {

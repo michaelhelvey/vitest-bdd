@@ -103,9 +103,9 @@ given("a Foo", () => {
     expect(output).toContain("inputs: () => ({ value: 0 })");
     expect(output).toContain("subject: ($inputs) => new Foo($inputs.value)");
 
-    // Should transform it( to __it( with $subject param and __ctx
+    // Should transform it( to __it( with $inputs and $subject params and __ctx
     expect(output).toContain("__it(");
-    expect(output).toContain("($subject) =>");
+    expect(output).toContain("($inputs, $subject) =>");
     expect(output).toContain(", __ctx)");
 
     // Should have __ctx parameter on the given callback
@@ -253,7 +253,7 @@ given("a Foo", () => {
 
     // But the it() inside should be transformed
     expect(output).toContain("__it(");
-    expect(output).toContain("($subject) =>");
+    expect(output).toContain("($inputs, $subject) =>");
   });
 
   test("transforms skip/only modifiers", () => {
@@ -374,7 +374,7 @@ given("a Foo", () => {
     expect(output).toContain("async (__ctx) =>");
 
     // The it callback should be async
-    expect(output).toContain("async ($subject) =>");
+    expect(output).toContain("async ($inputs, $subject) =>");
   });
 
   test("produces correct full output for a complete given/when/it tree", () => {
@@ -407,19 +407,37 @@ import { __given, __it, __when } from "@michaelhelvey/vitest-bdd/runtime";
 
 __given("a Foo", { inputs: () => ({ value: 0 }), subject: ($inputs) => new Foo($inputs.value) }, (__ctx) => {
 
-  __it("has value 0", ($subject) => {
+  __it("has value 0", ($inputs, $subject) => {
     expect($subject.value).toEqual(0);
   }, __ctx);
 
   __when("the user sets value to 5", { modifier: ($inputs) => { $inputs.value = 5; }, perform: ($subject) => { $subject.inc(); } }, (__ctx) => {
 
-    __it("has value 6", ($subject) => {
+    __it("has value 6", ($inputs, $subject) => {
       expect($subject.value).toEqual(6);
     }, __ctx);
   }, __ctx);
 });
       `),
     );
+  });
+
+  test("passes $inputs as a parameter to it() callbacks", () => {
+    const input = `
+given("a Foo", () => {
+  $inputs = { value: 42 };
+  $subject = new Foo($inputs.value);
+
+  it("can access $inputs", () => {
+    expect($inputs.value).toEqual(42);
+  });
+});
+    `.trim();
+
+    const output = transform(input);
+
+    // The it callback should receive both $inputs and $subject
+    expect(output).toContain("($inputs, $subject) =>");
   });
 
   test("returns a source map", () => {

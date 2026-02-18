@@ -126,3 +126,22 @@ given("a Foo with async test", () => {
     });
   });
 });
+
+// Test 9: $inputs should be accessible inside it() blocks
+given("a Foo where $inputs is used in it()", () => {
+  $inputs = { value: 42 };
+  $subject = new Foo($inputs.value);
+
+  it("can access $inputs directly", () => {
+    expect($inputs.value).toEqual(42);
+  });
+
+  when("value is changed", () => {
+    $inputs.value = 99;
+
+    it("can access modified $inputs", () => {
+      expect($inputs.value).toEqual(99);
+      expect($subject.value).toEqual(99);
+    });
+  });
+});

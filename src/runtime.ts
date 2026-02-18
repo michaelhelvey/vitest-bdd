@@ -61,7 +61,7 @@ export function __when<TInputs extends Record<string, unknown>, TSubject>(
 
 export function __it<TInputs extends Record<string, unknown>, TSubject>(
   scenario: string,
-  testFn: (subject: TSubject) => void | Promise<void>,
+  testFn: (inputs: TInputs, subject: TSubject) => void | Promise<void>,
   ctx: RuntimeContext<TInputs, TSubject>,
   testRunner: TestFn = test,
 ): void {
@@ -74,6 +74,6 @@ export function __it<TInputs extends Record<string, unknown>, TSubject>(
     for (const perform of ctx.performs) {
       await perform(subject);
     }
-    await testFn(subject);
+    await testFn(inputs, subject);
   });
 }

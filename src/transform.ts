@@ -395,7 +395,7 @@ function transformIt(call: BddCall, code: string, s: MagicString): void {
     : "";
   const callbackStart = callback.getStart();
   const headerEnd = getCallbackHeaderEnd(callback);
-  s.overwrite(callbackStart, headerEnd, `${asyncPrefix}($subject) =>`);
+  s.overwrite(callbackStart, headerEnd, `${asyncPrefix}($inputs, $subject) =>`);
 
   // Append __ctx as additional argument
   const lastArg = node.arguments[node.arguments.length - 1];
