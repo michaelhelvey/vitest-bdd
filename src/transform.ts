@@ -202,6 +202,7 @@ function isSubjectAssignment(stmt: ts.Statement): stmt is ts.ExpressionStatement
 
 /**
  * Check if a statement is a `$inputs.PROP = EXPR` modifier assignment.
+ * Supports nested property access like `$inputs.foo.bar = EXPR`.
  */
 function isInputsModifier(stmt: ts.Statement): boolean {
   if (!ts.isExpressionStatement(stmt)) return false;
@@ -209,7 +210,12 @@ function isInputsModifier(stmt: ts.Statement): boolean {
   if (!ts.isBinaryExpression(expr)) return false;
   if (expr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return false;
   if (!ts.isPropertyAccessExpression(expr.left)) return false;
-  return ts.isIdentifier(expr.left.expression) && expr.left.expression.text === "$inputs";
+  // Walk the property access chain to find $inputs at the root
+  let current: ts.Expression = expr.left;
+  while (ts.isPropertyAccessExpression(current)) {
+    current = current.expression;
+  }
+  return ts.isIdentifier(current) && current.text === "$inputs";
 }
 
 /**

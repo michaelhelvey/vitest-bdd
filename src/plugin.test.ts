@@ -145,3 +145,17 @@ given("a Foo where $inputs is used in it()", () => {
     });
   });
 });
+
+// Test 10: nested property access on $inputs in when() modifiers
+given("a Foo with nested inputs", () => {
+  $inputs = { config: { value: 0 } };
+  $subject = new Foo($inputs.config.value);
+
+  when("config.value is set to 7", () => {
+    $inputs.config.value = 7;
+
+    it("has value 7", () => {
+      expect($subject.value).toEqual(7);
+    });
+  });
+});

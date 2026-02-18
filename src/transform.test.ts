@@ -151,6 +151,28 @@ given("a Foo", () => {
     // The body should contain the __it call but not $inputs.value = 5
   });
 
+  test("transforms when block with nested property modifier", () => {
+    const input = `
+given("a Foo", () => {
+  $inputs = { config: { value: 0 } };
+  $subject = new Foo($inputs.config.value);
+
+  when("config.value is set to 5", () => {
+    $inputs.config.value = 5;
+
+    it("has value 5", () => {
+      expect($subject.value).toEqual(5);
+    });
+  });
+});
+    `.trim();
+
+    const output = transform(input);
+
+    // Nested property modifier should be recognized as a modifier
+    expect(output).toContain("modifier: ($inputs) => { $inputs.config.value = 5; }");
+  });
+
   test("transforms when block with perform", () => {
     const input = `
 given("a Foo", () => {
