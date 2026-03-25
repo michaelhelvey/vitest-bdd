@@ -37,7 +37,8 @@ export default defineConfig({
       typeCheck: true,
     },
     rules: {
-      // Matches the old ESLint config: no-explicit-any was off
+      "typescript/no-unsafe-type-assertion": "off",
+      "eslint/no-await-in-loop": "off",
     },
     overrides: [
       {

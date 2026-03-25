@@ -1,6 +1,6 @@
 {
   "name": "@michaelhelvey/vitest-bdd",
-  "version": "2.0.4",
+  "version": "3.0.0",
   "description": "A BDD (Behavior-Driven Development) testing helper for Vitest that provides a structured given/when/it pattern with isolated world state for each test.",
   "license": "MIT",
   "author": {
