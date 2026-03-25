@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { transformBddSyntax } from "./transform.ts";
 
 /** Helper: transform and assert non-null result */
@@ -29,7 +29,7 @@ describe("something", () => { test("works", () => {}); });
 
   test("does not transform standalone it() calls outside of given()", () => {
     const input = `
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 
 describe("a non-BDD test suite", () => {
   it("should work without BDD", () => {
@@ -49,7 +49,7 @@ describe("a non-BDD test suite", () => {
 
   test("does not transform it() calls outside given() even when given() exists elsewhere", () => {
     const input = `
-import { describe, expect } from "vitest";
+import { describe, expect } from "vite-plus/test";
 
 describe("non-BDD tests", () => {
   it("standalone test", () => {

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-function-type, @typescript-eslint/no-unsafe-return */
+/* oxlint-disable typescript/no-unsafe-function-type, typescript/no-unsafe-return */
 import type ts from "typescript";
 
 const TEST_FILE_PATTERN = /\.(spec|test)\.(ts|tsx)$/;
@@ -394,7 +394,7 @@ function createLanguageServiceProxy(
 const pluginModuleFactory: ts.server.PluginModuleFactory = ({ typescript }) => {
   return {
     create(info: ts.server.PluginCreateInfo): ts.LanguageService {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- may be undefined in unit tests
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- may be undefined in unit tests
       info.project?.projectService?.logger?.info("[vitest-bdd] Plugin loaded successfully");
       return createLanguageServiceProxy(info, typescript);
     },

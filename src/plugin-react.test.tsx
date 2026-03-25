@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { useState } from "react";
-import { afterEach, expect } from "vitest";
+import { afterEach, expect } from "vite-plus/test";
 
 afterEach(() => {
   cleanup();

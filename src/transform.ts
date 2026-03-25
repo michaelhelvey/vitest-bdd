@@ -478,11 +478,11 @@ export function transformBddSyntax(
   }
 
   // Add import statement at the top
-  const helpers = Array.from(usedHelpers).sort().join(", ");
+  const helpers = Array.from(usedHelpers).toSorted().join(", ");
   let imports = `import { ${helpers} } from "@michaelhelvey/vitest-bdd/runtime";\n`;
   if (usedVitestImports.size > 0) {
-    const vitestImports = Array.from(usedVitestImports).sort().join(", ");
-    imports += `import { ${vitestImports} } from "vitest";\n`;
+    const vitestImports = Array.from(usedVitestImports).toSorted().join(", ");
+    imports += `import { ${vitestImports} } from "vite-plus/test";\n`;
   }
   s.prepend(imports + "\n");
 

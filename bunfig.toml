@@ -3,4 +3,4 @@ peer = true
 exact = true
 
 [test]
-root="./packages/e2e"
+root = "./packages/e2e"

@@ -1,4 +1,4 @@
-import { describe, test } from "vitest";
+import { describe, test } from "vite-plus/test";
 
 export interface RuntimeContext<TInputs, TSubject> {
   /** Factory that returns a fresh copy of the default inputs */

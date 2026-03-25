@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "vite-plus/test";
 import { transformBddSyntax } from "./transform.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -35,7 +35,7 @@ describe("e2e: example project", () => {
     // - The vite plugin transform works correctly for a real consumer project
     // - given/when/it produce correct describe/test structures
     // - $inputs/$subject factory isolation works (each test gets fresh state)
-    const result = execSync("npx vitest --run src/example.test.ts", {
+    const result = execSync("npx vp test --run src/example.test.ts", {
       cwd: EXAMPLE_DIR,
       stdio: "pipe",
       encoding: "utf-8",
@@ -49,7 +49,7 @@ describe("e2e: example project", () => {
     // After the transform, that bare `$inputs` reference is NOT wrapped in a factory
     // and remains as a reference to an undefined global, causing a ReferenceError.
     expect(() => {
-      execSync("npx vitest --run src/errors.test.ts", {
+      execSync("npx vp test --run src/errors.test.ts", {
         cwd: EXAMPLE_DIR,
         stdio: "pipe",
         encoding: "utf-8",
@@ -62,7 +62,7 @@ describe("e2e: example project", () => {
     // is not extracted into a config factory -- it stays as a bare reference
     // which will cause a ReferenceError at runtime.
     const code = `
-import { expect } from "vitest";
+import { expect } from "vite-plus/test";
 
 const x = $inputs;
 

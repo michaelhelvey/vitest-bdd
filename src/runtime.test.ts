@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { __given, __it, __when } from "./runtime.ts";
 
 class Foo {

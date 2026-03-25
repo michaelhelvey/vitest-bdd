@@ -1,4 +1,4 @@
-/* eslint-disable no-var */
+/* oxlint-disable no-var */
 declare function given(scenario: string, fn: () => void): void;
 declare namespace given {
   function skip(scenario: string, fn: () => void): void;
@@ -18,8 +18,7 @@ declare namespace when {
  * and avoids the duplicate-identifier error that arose from the previous
  * `declare function` + `declare namespace` pattern.
  */
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-declare var it: (typeof import("vitest"))["it"];
+declare var it: (typeof import("vite-plus/test"))["it"];
 
 declare var $inputs: any;
 declare var $subject: any;

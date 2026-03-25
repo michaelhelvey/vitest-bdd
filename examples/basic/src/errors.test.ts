@@ -1,4 +1,4 @@
-import { expect } from "vitest";
+import { expect } from "vite-plus/test";
 
 // This file intentionally contains code that should produce a runtime error.
 // The $inputs variable is used at the top level (outside of given()), which

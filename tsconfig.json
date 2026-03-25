@@ -11,6 +11,9 @@
     "strict": true,
     "strictNullChecks": true,
 
+    // lib:
+    "lib": ["ES2024"],
+
     // misc:
     "noEmit": true,
     "esModuleInterop": true,

@@ -1,44 +1,26 @@
 {
   "name": "@michaelhelvey/vitest-bdd",
   "version": "2.0.4",
+  "description": "A BDD (Behavior-Driven Development) testing helper for Vitest that provides a structured given/when/it pattern with isolated world state for each test.",
+  "license": "MIT",
   "author": {
-    "email": "michael.helvey1@gmail.com",
     "name": "Michael Helvey",
+    "email": "michael.helvey1@gmail.com",
     "url": "https://github.com/michaelhelvey"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/michaelhelvey/vitest-bdd"
   },
-  "dependencies": {
-    "magic-string": "0.30.21",
-    "typescript": "5.9.3"
-  },
-  "devDependencies": {
-    "@arethetypeswrong/cli": "0.18.2",
-    "@eslint/compat": "2.0.2",
-    "@testing-library/react": "16.3.2",
-    "@testing-library/user-event": "14.6.1",
-    "@trivago/prettier-plugin-sort-imports": "6.0.2",
-    "@types/node": "25.2.1",
-    "@types/react": "19.2.13",
-    "@types/react-dom": "19.2.3",
-    "@vitest/coverage-v8": "4.0.18",
-    "eslint": "9.39.1",
-    "happy-dom": "20.5.0",
-    "jiti": "2.6.1",
-    "lefthook": "2.1.0",
-    "prettier": "3.8.1",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "tsdown": "0.20.3",
-    "typescript-eslint": "8.54.0",
-    "vitest": "4.0.18"
-  },
-  "peerDependencies": {
-    "vite": ">=5",
-    "vitest": ">3"
-  },
+  "files": [
+    "dist",
+    "ts-plugin",
+    "src/globals.d.ts",
+    "README.md",
+    "package.json"
+  ],
+  "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "import": {
@@ -58,47 +40,36 @@
     },
     "./package.json": "./package.json"
   },
-  "description": "A BDD (Behavior-Driven Development) testing helper for Vitest that provides a structured given/when/it pattern with isolated world state for each test.",
+  "scripts": {
+    "prepare": "vp config && bun link",
+    "prepublish": "bun run validate",
+    "test": "vp test",
+    "lint": "vp lint --fix",
+    "fmt": "vp fmt",
+    "build": "vp pack",
+    "attw": "attw --pack . --exclude-entrypoints ./ts-plugin --ignore-rules no-resolution cjs-resolves-to-esm",
+    "validate": "bun run build && bun run lint && bun run test --run && bun run attw"
+  },
+  "dependencies": {
+    "magic-string": "0.30.21",
+    "typescript": "6.0.2"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.2",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "25.5.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "happy-dom": "20.8.8",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "vite-plus": "0.1.14"
+  },
+  "peerDependencies": {
+    "vite-plus": ">=0.1"
+  },
   "engines": {
     "node": ">=24"
-  },
-  "files": [
-    "dist",
-    "ts-plugin",
-    "src/globals.d.ts",
-    "README.md",
-    "package.json"
-  ],
-  "license": "MIT",
-  "prettier": {
-    "proseWrap": "always",
-    "singleQuote": false,
-    "semi": true,
-    "trailingComma": "all",
-    "useTabs": false,
-    "printWidth": 100,
-    "tabWidth": 2,
-    "plugins": [
-      "@trivago/prettier-plugin-sort-imports"
-    ],
-    "importOrder": [
-      "^node:.*$",
-      "<THIRD_PARTY_MODULES>",
-      "^[./]"
-    ],
-    "importOrderSeparation": false,
-    "importOrderSortSpecifiers": true
-  },
-  "scripts": {
-    "prepare": "lefthook install",
-    "prepublish": "bun run validate",
-    "test": "vitest",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "attw": "attw --pack . --exclude-entrypoints ./ts-plugin --ignore-rules no-resolution cjs-resolves-to-esm",
-    "validate": "bun run build && bun run test --run && bun run lint && bun run typecheck && bun run attw",
-    "build": "tsc -b && tsdown && bun link"
-  },
-  "sideEffects": false,
-  "type": "module"
+  }
 }

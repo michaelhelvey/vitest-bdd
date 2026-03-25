@@ -1,5 +1,5 @@
 import ts from "typescript";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import pluginFactory from "./ts-plugin.ts";
 
 function diagnosticMessages(diagnostics: readonly ts.Diagnostic[]): string[] {

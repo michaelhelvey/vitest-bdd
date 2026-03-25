@@ -1,4 +1,4 @@
-import type { Plugin } from "vite";
+import type { Plugin } from "vite-plus";
 import { transformBddSyntax } from "./transform.ts";
 
 export default function vitestBddPlugin(): Plugin {
