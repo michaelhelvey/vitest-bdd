@@ -32,17 +32,16 @@ npm install @michaelhelvey/vitest-bdd # or bun, yarn, pnpm, etc.
 
 **Peer Dependencies:**
 
-- `vite` >=5
-- `vitest` >3
+- `vite-plus` >=0.1
 
 ## Setup
 
 ### 1. Add the Vite plugin
 
 ```typescript
-// vitest.config.ts
+// vite.config.ts
 import vitestBddPlugin from "@michaelhelvey/vitest-bdd";
-import { defineConfig } from "vitest/config";
+import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   plugins: [vitestBddPlugin()],
@@ -80,7 +79,7 @@ diagnostic suppression), add the language service plugin:
 ## Quick Start
 
 ```typescript
-import { expect } from "vitest";
+import { expect } from "vite-plus/test";
 
 class Counter {
   constructor(private _value = 0) {}
@@ -197,7 +196,7 @@ given("addition", () => {
 ### Testing a Class
 
 ```typescript
-import { expect } from "vitest";
+import { expect } from "vite-plus/test";
 
 class Calculator {
   constructor(private value = 0) {}
@@ -242,7 +241,7 @@ given("a Calculator", () => {
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { afterEach, expect } from "vitest";
+import { afterEach, expect } from "vite-plus/test";
 
 function Counter({ start }: { start: number }) {
   const [count, setCount] = useState(start);
@@ -340,8 +339,8 @@ The transformation:
 
 ## Editor Support
 
-The TypeScript language service plugin (`"plugins": [{ "name": "@michaelhelvey/vitest-bdd" }]` in
-tsconfig) provides:
+The TypeScript language service plugin
+(`"plugins": [{ "name": "@michaelhelvey/vitest-bdd/ts-plugin" }]` in tsconfig) provides:
 
 - **Autocomplete** on `$inputs.` and `$subject.` based on their assigned types
 - **Hover information** showing the inferred types of `$inputs` and `$subject`
