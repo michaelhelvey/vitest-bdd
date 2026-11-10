@@ -1,41 +1,63 @@
 import MagicString from "magic-string";
-import ts from "typescript";
+import { parseSync, type ESTree } from "vite-plus";
 
 type BddCallKind = "given" | "when" | "it";
 
+type Callback = ESTree.ArrowFunctionExpression | ESTree.Function;
+
 interface BddCall {
   kind: BddCallKind;
-  node: ts.CallExpression;
+  node: ESTree.CallExpression;
   depth: number;
   modifier?: "skip" | "only";
+}
+
+function isNode(value: unknown): value is ESTree.Node {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { type?: unknown }).type === "string"
+  );
+}
+
+/**
+ * Get the direct child nodes of a node, in source order.
+ */
+function childNodes(node: ESTree.Node): ESTree.Node[] {
+  const children: ESTree.Node[] = [];
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent") continue;
+    if (Array.isArray(value)) {
+      children.push(...value.filter(isNode));
+    } else if (isNode(value)) {
+      children.push(value);
+    }
+  }
+  return children;
+}
+
+function isIdentifierNamed(node: ESTree.Node, name: string): boolean {
+  return (node.type === "Identifier" || node.type === "JSXIdentifier") && node.name === name;
 }
 
 /**
  * Checks if a node references a specific identifier name anywhere in its subtree.
  * Optionally skips descending into `it()` callback arguments.
  */
-function referencesIdentifier(node: ts.Node, name: string, skipItCallbacks: boolean): boolean {
-  if (ts.isIdentifier(node) && node.text === name) {
+function referencesIdentifier(node: ESTree.Node, name: string, skipItCallbacks: boolean): boolean {
+  if (isIdentifierNamed(node, name)) {
     return true;
   }
 
   // Skip descending into BDD call callback bodies (it, when, given)
   // since those are transformed separately
-  if (skipItCallbacks && ts.isCallExpression(node)) {
-    const parsed = parseBddCall(node);
-    if (parsed) {
-      // Only check the first arg (description), skip callback
-      const firstArg = node.arguments[0] as ts.Node | undefined;
-      if (firstArg && referencesIdentifier(firstArg, name, skipItCallbacks)) {
-        return true;
-      }
-      return false;
-    }
+  if (skipItCallbacks && node.type === "CallExpression" && parseBddCall(node)) {
+    // Only check the first arg (description), skip callback
+    const firstArg = node.arguments[0] as ESTree.Node | undefined;
+    return firstArg !== undefined && referencesIdentifier(firstArg, name, skipItCallbacks);
   }
 
-  return (
-    ts.forEachChild(node, (child) => referencesIdentifier(child, name, skipItCallbacks)) ?? false
-  );
+  return childNodes(node).some((child) => referencesIdentifier(child, name, skipItCallbacks));
 }
 
 /**
@@ -43,13 +65,13 @@ function referencesIdentifier(node: ts.Node, name: string, skipItCallbacks: bool
  * with a .skip or .only modifier.
  */
 function parseBddCall(
-  node: ts.CallExpression,
+  node: ESTree.CallExpression,
 ): { kind: BddCallKind; modifier?: "skip" | "only" } | null {
-  const expr = node.expression;
+  const expr = node.callee;
 
   // Direct call: given(...), when(...), it(...)
-  if (ts.isIdentifier(expr)) {
-    const name = expr.text;
+  if (expr.type === "Identifier") {
+    const name = expr.name;
     if (name === "given" || name === "when" || name === "it") {
       return { kind: name };
     }
@@ -57,15 +79,15 @@ function parseBddCall(
   }
 
   // Property access: given.skip(...), when.only(...), etc.
-  if (ts.isPropertyAccessExpression(expr)) {
-    const obj = expr.expression;
-    const prop = expr.name.text;
+  if (expr.type === "MemberExpression" && !expr.computed) {
+    const obj = expr.object;
+    const prop = expr.property.name;
     if (
-      ts.isIdentifier(obj) &&
-      (obj.text === "given" || obj.text === "when" || obj.text === "it") &&
+      obj.type === "Identifier" &&
+      (obj.name === "given" || obj.name === "when" || obj.name === "it") &&
       (prop === "skip" || prop === "only")
     ) {
-      return { kind: obj.text, modifier: prop };
+      return { kind: obj.name, modifier: prop };
     }
   }
 
@@ -79,69 +101,72 @@ function parseBddCall(
  * be transformed (they would reference `__ctx` which is only defined inside a
  * transformed `given()` callback).
  */
-function collectBddCalls(sourceFile: ts.SourceFile): BddCall[] {
+function collectBddCalls(program: ESTree.Program): BddCall[] {
   const calls: BddCall[] = [];
 
-  function visit(node: ts.Node, depth: number, insideGiven: boolean): void {
-    if (ts.isCallExpression(node)) {
-      const parsed = parseBddCall(node);
-      if (parsed) {
-        // Only collect `when` and `it` if they are inside a `given` block.
-        // Top-level `it()` / `when()` calls are standard Vitest and must not
-        // be rewritten.
-        if (parsed.kind === "given" || insideGiven) {
-          calls.push({
-            kind: parsed.kind,
-            node,
-            depth,
-            modifier: parsed.modifier,
-          });
-        }
-        const nowInsideGiven = insideGiven || parsed.kind === "given";
-        // Continue visiting children at deeper depth
-        ts.forEachChild(node, (child) => {
-          visit(child, depth + 1, nowInsideGiven);
+  function visit(node: ESTree.Node, depth: number, insideGiven: boolean): void {
+    const parsed = node.type === "CallExpression" ? parseBddCall(node) : null;
+    if (node.type === "CallExpression" && parsed) {
+      // Only collect `when` and `it` if they are inside a `given` block.
+      // Top-level `it()` / `when()` calls are standard Vitest and must not
+      // be rewritten.
+      if (parsed.kind === "given" || insideGiven) {
+        calls.push({
+          kind: parsed.kind,
+          node,
+          depth,
+          modifier: parsed.modifier,
         });
-        return;
       }
+      const nowInsideGiven = insideGiven || parsed.kind === "given";
+      // Continue visiting children at deeper depth
+      for (const child of childNodes(node)) {
+        visit(child, depth + 1, nowInsideGiven);
+      }
+      return;
     }
-    ts.forEachChild(node, (child) => {
+    for (const child of childNodes(node)) {
       visit(child, depth, insideGiven);
-    });
+    }
   }
 
-  ts.forEachChild(sourceFile, (child) => {
+  for (const child of childNodes(program)) {
     visit(child, 0, false);
-  });
+  }
   return calls;
 }
 
 /**
  * Get the source text for a range from the original code.
  */
-function getNodeText(code: string, node: ts.Node): string {
-  return code.slice(node.getStart(), node.getEnd());
+function getNodeText(code: string, node: ESTree.Node): string {
+  return code.slice(node.start, node.end);
 }
 
 /**
  * Check if an expression is (or wraps via `as` / `satisfies`) an object literal.
  * Returns true for: `{ ... }`, `{ ... } as T`, `{ ... } satisfies T`, etc.
  */
-function isObjectLiteralLike(node: ts.Expression): boolean {
-  if (ts.isObjectLiteralExpression(node)) return true;
-  if (ts.isAsExpression(node)) return isObjectLiteralLike(node.expression);
-  if (ts.isSatisfiesExpression(node)) return isObjectLiteralLike(node.expression);
-  if (ts.isParenthesizedExpression(node)) return isObjectLiteralLike(node.expression);
-  return false;
+function isObjectLiteralLike(node: ESTree.Expression): boolean {
+  switch (node.type) {
+    case "ObjectExpression":
+      return true;
+    case "TSAsExpression":
+    case "TSSatisfiesExpression":
+    case "ParenthesizedExpression":
+      return isObjectLiteralLike(node.expression);
+    default:
+      return false;
+  }
 }
 
 /**
  * Find the arrow function or function expression callback (last arg that is a function).
  */
-function getCallbackArg(node: ts.CallExpression): ts.ArrowFunction | ts.FunctionExpression | null {
+function getCallbackArg(node: ESTree.CallExpression): Callback | null {
   for (let i = node.arguments.length - 1; i >= 0; i--) {
     const arg = node.arguments[i];
-    if (ts.isArrowFunction(arg) || ts.isFunctionExpression(arg)) {
+    if (arg.type === "ArrowFunctionExpression" || arg.type === "FunctionExpression") {
       return arg;
     }
   }
@@ -152,88 +177,84 @@ function getCallbackArg(node: ts.CallExpression): ts.ArrowFunction | ts.Function
  * Get the body statements of a callback (arrow function or function expression).
  * Returns null if the body is a single expression (no block).
  */
-function getBodyStatements(
-  callback: ts.ArrowFunction | ts.FunctionExpression,
-): ts.Statement[] | null {
-  if (ts.isBlock(callback.body)) {
-    return Array.from(callback.body.statements);
+function getBodyStatements(callback: Callback): ESTree.Statement[] | null {
+  const body = callback.body;
+  if (body?.type === "BlockStatement") {
+    return body.body;
   }
   return null;
 }
 
 /**
- * Get the end position of the callback "header" (everything before the body).
- * For arrow functions: ends after `=>`
- * For function expressions: ends after `)` (before body block)
+ * Replace the callback "header" (everything before the body) with an arrow function header.
  */
-function getCallbackHeaderEnd(callback: ts.ArrowFunction | ts.FunctionExpression): number {
-  if (ts.isArrowFunction(callback)) {
-    return callback.equalsGreaterThanToken.getEnd();
-  }
-  // For function expressions, the body starts right at the block
-  return callback.body.getStart();
+function overwriteCallbackHeader(s: MagicString, callback: Callback, params: string): void {
+  const body = callback.body;
+  if (!body) throw new Error("vitest-bdd: a BDD callback must have a body");
+  const asyncPrefix = callback.async ? "async " : "";
+  s.overwrite(callback.start, body.start, `${asyncPrefix}(${params}) => `);
 }
 
 /**
- * Check if a statement is `$inputs = EXPR` (assignment to $inputs).
+ * Get the assignment expression of a statement like `NAME = EXPR`, or null.
  */
-function isInputsAssignment(stmt: ts.Statement): stmt is ts.ExpressionStatement & {
-  expression: ts.BinaryExpression;
-} {
-  if (!ts.isExpressionStatement(stmt)) return false;
+function getAssignment(stmt: ESTree.Statement): ESTree.AssignmentExpression | null {
+  if (stmt.type !== "ExpressionStatement") return null;
   const expr = stmt.expression;
-  if (!ts.isBinaryExpression(expr)) return false;
-  if (expr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return false;
-  return ts.isIdentifier(expr.left) && expr.left.text === "$inputs";
+  if (expr.type !== "AssignmentExpression" || expr.operator !== "=") return null;
+  return expr;
 }
 
 /**
- * Check if a statement is `$subject = EXPR` (assignment to $subject).
+ * Get the assignment of a statement that is `NAME = EXPR` for the given identifier.
  */
-function isSubjectAssignment(stmt: ts.Statement): stmt is ts.ExpressionStatement & {
-  expression: ts.BinaryExpression;
-} {
-  if (!ts.isExpressionStatement(stmt)) return false;
-  const expr = stmt.expression;
-  if (!ts.isBinaryExpression(expr)) return false;
-  if (expr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return false;
-  return ts.isIdentifier(expr.left) && expr.left.text === "$subject";
+function getAssignmentTo(stmt: ESTree.Statement, name: string): ESTree.AssignmentExpression | null {
+  const assignment = getAssignment(stmt);
+  return assignment && isIdentifierNamed(assignment.left, name) ? assignment : null;
 }
 
 /**
  * Check if a statement is a `$inputs.PROP = EXPR` modifier assignment.
  * Supports nested property access like `$inputs.foo.bar = EXPR`.
  */
-function isInputsModifier(stmt: ts.Statement): boolean {
-  if (!ts.isExpressionStatement(stmt)) return false;
-  const expr = stmt.expression;
-  if (!ts.isBinaryExpression(expr)) return false;
-  if (expr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return false;
-  if (!ts.isPropertyAccessExpression(expr.left)) return false;
+function isInputsModifier(stmt: ESTree.Statement): boolean {
+  const assignment = getAssignment(stmt);
+  if (!assignment) return false;
+  let current: ESTree.Node = assignment.left;
+  if (current.type !== "MemberExpression" || current.computed) return false;
   // Walk the property access chain to find $inputs at the root
-  let current: ts.Expression = expr.left;
-  while (ts.isPropertyAccessExpression(current)) {
-    current = current.expression;
+  while (current.type === "MemberExpression" && !current.computed) {
+    current = current.object;
   }
-  return ts.isIdentifier(current) && current.text === "$inputs";
+  return isIdentifierNamed(current, "$inputs");
 }
 
 /**
  * Check if a statement is an it() call (or it.skip/it.only).
  */
-function isItCall(stmt: ts.Statement): boolean {
-  if (!ts.isExpressionStatement(stmt)) return false;
-  if (!ts.isCallExpression(stmt.expression)) return false;
-  const parsed = parseBddCall(stmt.expression);
-  return parsed !== null && parsed.kind === "it";
+function isItCall(stmt: ESTree.Statement): boolean {
+  if (stmt.type !== "ExpressionStatement") return false;
+  if (stmt.expression.type !== "CallExpression") return false;
+  return parseBddCall(stmt.expression)?.kind === "it";
 }
 
 /**
  * Check if a statement references $subject (but is not an it() call).
  */
-function isPerformStatement(stmt: ts.Statement): boolean {
+function isPerformStatement(stmt: ESTree.Statement): boolean {
   if (isItCall(stmt)) return false;
   return referencesIdentifier(stmt, "$subject", true);
+}
+
+/**
+ * Remove a statement, including the line breaks that follow it.
+ */
+function removeStatement(code: string, s: MagicString, stmt: ESTree.Statement): void {
+  let end = stmt.end;
+  while (end < code.length && (code[end] === "\n" || code[end] === "\r")) {
+    end++;
+  }
+  s.remove(stmt.start, end);
 }
 
 function transformGiven(call: BddCall, code: string, s: MagicString): void {
@@ -247,21 +268,21 @@ function transformGiven(call: BddCall, code: string, s: MagicString): void {
   // Find $inputs and $subject assignments
   let inputsExpr: string | null = null;
   let subjectExpr: string | null = null;
-  const stmtsToRemove: ts.Statement[] = [];
+  const stmtsToRemove: ESTree.Statement[] = [];
 
   for (const stmt of stmts) {
-    if (isInputsAssignment(stmt)) {
-      const binExpr = stmt.expression as ts.BinaryExpression;
-      const exprText = getNodeText(code, binExpr.right);
+    const inputs = getAssignmentTo(stmt, "$inputs");
+    const subject = getAssignmentTo(stmt, "$subject");
+    if (inputs) {
+      const exprText = getNodeText(code, inputs.right);
       // Wrap object literals (including those with `as T` / `satisfies T`) in parens
-      inputsExpr = isObjectLiteralLike(binExpr.right) ? `(${exprText})` : exprText;
+      inputsExpr = isObjectLiteralLike(inputs.right) ? `(${exprText})` : exprText;
       stmtsToRemove.push(stmt);
-    } else if (isSubjectAssignment(stmt)) {
-      const binExpr = stmt.expression as ts.BinaryExpression;
-      const exprText = getNodeText(code, binExpr.right);
+    } else if (subject) {
+      const exprText = getNodeText(code, subject.right);
       // Wrap object literals (including those with `as T` / `satisfies T`) in parens
       // so arrow function body isn't ambiguous
-      subjectExpr = isObjectLiteralLike(binExpr.right) ? `(${exprText})` : exprText;
+      subjectExpr = isObjectLiteralLike(subject.right) ? `(${exprText})` : exprText;
       stmtsToRemove.push(stmt);
     }
   }
@@ -278,40 +299,22 @@ function transformGiven(call: BddCall, code: string, s: MagicString): void {
 
   // Remove $inputs and $subject assignment statements
   for (const stmt of stmtsToRemove) {
-    // Remove the full statement including trailing newline
-    let end = stmt.getEnd();
-    while (end < code.length && (code[end] === "\n" || code[end] === "\r")) {
-      end++;
-    }
-    s.remove(stmt.getStart(), end);
+    removeStatement(code, s, stmt);
   }
 
   // Replace the callee: given( -> __given( or given.skip( -> __given(
-  const calleeStart = node.expression.getStart();
-  const calleeEnd = node.expression.getEnd();
-  s.overwrite(calleeStart, calleeEnd, "__given");
-
-  // Determine the position of the first argument (the description string)
-  const descArg = node.arguments[0];
-  const descEnd = descArg.getEnd();
+  s.overwrite(node.callee.start, node.callee.end, "__given");
 
   // Insert config object after description
-  s.appendLeft(descEnd, `, ${configObj}`);
+  s.appendLeft(node.arguments[0].end, `, ${configObj}`);
 
   // Transform the callback: () => { ... } -> (__ctx) => { ... }
-  // Replace the parameter list
-  const asyncPrefix = callback.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword)
-    ? "async "
-    : "";
-  const callbackStart = callback.getStart();
-  const headerEnd = getCallbackHeaderEnd(callback);
-  s.overwrite(callbackStart, headerEnd, `${asyncPrefix}(__ctx) =>`);
+  overwriteCallbackHeader(s, callback, "__ctx");
 
   // Add skip/only modifier as last argument
   if (call.modifier) {
-    // Find the closing paren of the call expression
     const lastArg = node.arguments[node.arguments.length - 1];
-    s.appendLeft(lastArg.getEnd(), `, describe.${call.modifier}`);
+    s.appendLeft(lastArg.end, `, describe.${call.modifier}`);
   }
 }
 
@@ -324,17 +327,14 @@ function transformWhen(call: BddCall, code: string, s: MagicString): void {
   if (!stmts) return;
 
   // Classify statements
-  const modifierStmts: ts.Statement[] = [];
-  const performStmts: ts.Statement[] = [];
-  const bodyStmts: ts.Statement[] = [];
+  const modifierStmts: ESTree.Statement[] = [];
+  const performStmts: ESTree.Statement[] = [];
 
   for (const stmt of stmts) {
     if (isInputsModifier(stmt)) {
       modifierStmts.push(stmt);
     } else if (isPerformStatement(stmt)) {
       performStmts.push(stmt);
-    } else {
-      bodyStmts.push(stmt);
     }
   }
 
@@ -352,63 +352,44 @@ function transformWhen(call: BddCall, code: string, s: MagicString): void {
 
   // Remove modifier and perform statements from the body
   for (const stmt of [...modifierStmts, ...performStmts]) {
-    let end = stmt.getEnd();
-    while (end < code.length && (code[end] === "\n" || code[end] === "\r")) {
-      end++;
-    }
-    s.remove(stmt.getStart(), end);
+    removeStatement(code, s, stmt);
   }
 
   // Replace the callee
-  const calleeStart = node.expression.getStart();
-  const calleeEnd = node.expression.getEnd();
-  s.overwrite(calleeStart, calleeEnd, "__when");
+  s.overwrite(node.callee.start, node.callee.end, "__when");
 
   // Insert config after description
-  const descArg = node.arguments[0];
-  s.appendLeft(descArg.getEnd(), `, ${configObj}`);
+  s.appendLeft(node.arguments[0].end, `, ${configObj}`);
 
   // Transform callback params
-  const asyncPrefix = callback.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword)
-    ? "async "
-    : "";
-  const callbackStart = callback.getStart();
-  const headerEnd = getCallbackHeaderEnd(callback);
-  s.overwrite(callbackStart, headerEnd, `${asyncPrefix}(__ctx) =>`);
+  overwriteCallbackHeader(s, callback, "__ctx");
 
   // Append __ctx as second-to-last arg (after callback, before closing paren)
   const lastArg = node.arguments[node.arguments.length - 1];
   if (call.modifier) {
-    s.appendLeft(lastArg.getEnd(), `, __ctx, describe.${call.modifier}`);
+    s.appendLeft(lastArg.end, `, __ctx, describe.${call.modifier}`);
   } else {
-    s.appendLeft(lastArg.getEnd(), ", __ctx");
+    s.appendLeft(lastArg.end, ", __ctx");
   }
 }
 
-function transformIt(call: BddCall, code: string, s: MagicString): void {
+function transformIt(call: BddCall, s: MagicString): void {
   const node = call.node;
   const callback = getCallbackArg(node);
   if (!callback) return;
 
   // Replace callee
-  const calleeStart = node.expression.getStart();
-  const calleeEnd = node.expression.getEnd();
-  s.overwrite(calleeStart, calleeEnd, "__it");
+  s.overwrite(node.callee.start, node.callee.end, "__it");
 
   // Add $subject parameter to callback
-  const asyncPrefix = callback.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword)
-    ? "async "
-    : "";
-  const callbackStart = callback.getStart();
-  const headerEnd = getCallbackHeaderEnd(callback);
-  s.overwrite(callbackStart, headerEnd, `${asyncPrefix}($inputs, $subject) =>`);
+  overwriteCallbackHeader(s, callback, "$inputs, $subject");
 
   // Append __ctx as additional argument
   const lastArg = node.arguments[node.arguments.length - 1];
   if (call.modifier) {
-    s.appendLeft(lastArg.getEnd(), `, __ctx, test.${call.modifier}`);
+    s.appendLeft(lastArg.end, `, __ctx, test.${call.modifier}`);
   } else {
-    s.appendLeft(lastArg.getEnd(), ", __ctx");
+    s.appendLeft(lastArg.end, ", __ctx");
   }
 }
 
@@ -416,35 +397,33 @@ function transformIt(call: BddCall, code: string, s: MagicString): void {
  * Check if the source file explicitly imports `given` from a module.
  * If so, it's using the old API and should not be transformed.
  */
-function importsGiven(sourceFile: ts.SourceFile): boolean {
-  for (const stmt of sourceFile.statements) {
-    if (
-      ts.isImportDeclaration(stmt) &&
-      stmt.importClause?.namedBindings &&
-      ts.isNamedImports(stmt.importClause.namedBindings)
-    ) {
-      for (const spec of stmt.importClause.namedBindings.elements) {
-        if (spec.name.text === "given") {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
+function importsGiven(program: ESTree.Program): boolean {
+  return program.body.some(
+    (stmt) =>
+      stmt.type === "ImportDeclaration" &&
+      stmt.specifiers.some(
+        (spec) => spec.type === "ImportSpecifier" && spec.local.name === "given",
+      ),
+  );
 }
 
 export function transformBddSyntax(
   code: string,
   id: string,
 ): { code: string; map: ReturnType<MagicString["generateMap"]> } | null {
-  const sourceFile = ts.createSourceFile(id, code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const { program, errors } = parseSync(id, code, { lang: id.endsWith(".ts") ? "ts" : "tsx" });
 
-  // Skip files that import `given` from a module (old API)
-  if (importsGiven(sourceFile)) {
+  // Leave files with syntax errors to the next transform, which reports them
+  if (errors.length > 0) {
     return null;
   }
 
-  const calls = collectBddCalls(sourceFile);
+  // Skip files that import `given` from a module (old API)
+  if (importsGiven(program)) {
+    return null;
+  }
+
+  const calls = collectBddCalls(program);
   if (calls.length === 0) {
     return null;
   }
@@ -470,7 +449,7 @@ export function transformBddSyntax(
         if (call.modifier) usedVitestImports.add("describe");
         break;
       case "it":
-        transformIt(call, code, s);
+        transformIt(call, s);
         usedHelpers.add("__it");
         if (call.modifier) usedVitestImports.add("test");
         break;

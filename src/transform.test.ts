@@ -479,4 +479,62 @@ given("something", () => {
     expect(result?.map).toBeDefined();
     expect(result?.map.sources).toContain("test.spec.ts");
   });
+
+  test.each([
+    {
+      name: "non-ASCII text before the given block",
+      id: "test.spec.ts",
+      prefix: 'const label = "😀 ünïcödé";\n',
+    },
+    {
+      name: "an angle-bracket type assertion in a .ts file",
+      id: "test.spec.ts",
+      prefix: "const n = <number>(1 as unknown);\n",
+    },
+    {
+      name: "JSX in a .tsx file",
+      id: "test.spec.tsx",
+      prefix: "const el = <div>hi</div>;\n",
+    },
+  ])("transforms a file with $name", ({ id, prefix }) => {
+    const input = `${prefix}given("a value", () => {
+  $inputs = { value: 1 };
+  $subject = $inputs.value;
+  it("works", () => /* => */ {
+    expect($subject).toBe(1);
+  });
+});`;
+
+    const result = transformBddSyntax(input, id);
+
+    expect(normalize(result?.code ?? "")).toBe(
+      normalize(`import { __given, __it } from "@michaelhelvey/vitest-bdd/runtime";
+${prefix}__given("a value", { inputs: () => ({ value: 1 }), subject: ($inputs) => $inputs.value }, (__ctx) => {
+  __it("works", ($inputs, $subject) => {
+    expect($subject).toBe(1);
+  }, __ctx);
+});`),
+    );
+  });
+
+  test("treats a JSX reference to $subject in when() as a perform statement", () => {
+    const input = `given("a component", () => {
+  $subject = { Foo: () => null };
+  when("it renders", () => {
+    render(<$subject.Foo />);
+  });
+});`;
+
+    const result = transformBddSyntax(input, "test.spec.tsx");
+
+    expect(normalize(result?.code ?? "")).toContain(
+      normalize(`perform: ($subject) => { render(<$subject.Foo />); }`),
+    );
+  });
+
+  test("returns null for a file with a syntax error", () => {
+    const input = `given("broken", () => {\n  $subject = ;\n});`;
+
+    expect(transformBddSyntax(input, "test.spec.ts")).toBeNull();
+  });
 });
