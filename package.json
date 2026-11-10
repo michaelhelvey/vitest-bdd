@@ -44,6 +44,7 @@
     "prepare": "vp config && bun link",
     "prepublish": "bun run validate",
     "test": "vp test",
+    "typecheck": "tsc -p tsconfig.json",
     "lint": "vp lint --fix",
     "fmt": "vp fmt",
     "build": "vp pack",

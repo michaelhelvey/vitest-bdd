@@ -1,5 +1,5 @@
 {
-  "exclude": ["**/*.js", "examples"],
+  "exclude": ["**/*.js", "examples", "dist"],
   "compilerOptions": {
     // node.js native ESM modules:
     "moduleResolution": "nodenext",
